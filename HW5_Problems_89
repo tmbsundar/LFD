@@ -1,0 +1,81 @@
+eta = 0.01
+Ntrain = 100
+Ntest = 1000
+runs = 100
+eps = 0.01
+
+data.generate = function(n,x){
+  x1=runif(n,-x,x)
+  x2=runif(n,-x,x)
+    data = data.frame(x1,x2)
+  return(list(data=data))
+}
+
+classify = function (x1,x2){
+  p1 = runif(2,-1,1)
+  p2 = runif(2,-1,1)
+  slope = (p2[2]-p1[2])/(p2[1]-p1[1])
+  intercept = p1[2] - slope*p1[1]
+  y = as.numeric(x1*slope + intercept > x2)*2-1
+  data = data.frame(x1,x2,y)
+  return(list(data=data,slope=slope,intercept=intercept))
+}
+
+initwt = function(){
+  w = cbind(0,0,0) # Is the intercept 1 or zero
+  #data = data.frame(w)
+  return(list(w=w))
+}
+
+norm_2 <- function(x) sqrt(sum(x^2))
+Cerror = matrix(NA,runs,1)
+Epochs = matrix(NA,runs,1)
+
+for (r in 1:runs)  {
+
+  generated = data.generate(Ntrain,1) # generate 100 points
+  classified = classify(generated$data$x1,generated$data$x2) # classify the generated points
+  independent = as.matrix(cbind(1,generated$data[c(1,2)],classified$data$y))
+  #Stochastic Gradient Descent <- Logistic Regression
+  w = initwt()$w
+  wnorm = w
+  epoch = 0
+      while (norm_2(wnorm) >= eps | norm_2(w) == 0 ) {
+        wold = w
+        #randomize the points
+        idx <- sample(1:Ntrain)
+        xper = independent[idx,1:3]
+        yper = independent[idx,4]
+        #Pick one point randomly
+        for (n in idx){
+          #rowidx = sample(1:100,1)
+          xr = xper[n,]
+          yr = yper[n]
+          #Compute the Gradient
+          PDE = - (yr*xr) / (1+exp(yr*(w%*%as.matrix(xr))))
+          w = w - eta*PDE
+        }
+        
+        wnorm = wold - w
+        epoch = epoch + 1
+         cat("Epoch: ", epoch, "w diff is ", norm_2(wnorm), "\n" ) 
+      }
+
+testd = data.generate(Ntest,1)
+testy = as.numeric(testd$data$x1*classified$slope + classified$intercept > testd$data$x2)*2-1
+testxy = as.matrix(cbind(1,testd$data[c(1,2)],testy))
+testx = testxy[,1:3]
+cross = 0
+for (i in 1:Ntest)
+{
+  yn = testy[i]
+  xn = testx[i,]
+  cross = cross + log(1+exp(-yn*(w%*%as.matrix(xn))))
+}
+cat("Avg CE Error", cross/Ntest,"\n")
+Epochs[r,] = epoch
+Cerror[r,] = cross/Ntest
+}
+cat("TOTAL Avg CE Error", mean(Cerror),"\n")
+cat("TOTAL Avg Epochs", mean(Epochs),"\n")
+
